@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Photobooth</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      background: #111; /* darker background so no pink strip */
+    }
+
+    .page {
+      display: none;
+      width: 100%;
+      height: 100vh;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      position: relative;
+      padding: 16px;
+      text-align: center;
+      background: url('/photo/spi.png') center/cover no-repeat !important;
+    }
+
+    .page.active {
+      display: flex;
+    }
+
+    /* dark overlay only for page 1 */
+    #page1::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(1px);
+      z-index: 1;
+    }
+
+    #page1 > * {
+      position: relative;
+      z-index: 2;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    p.subtext {
+      font-size: 0.95rem;
+      margin-bottom: 18px;
+      color: #eee;
+      max-width: 420px;
+    }
+
+    button {
+      padding: 12px 32px;
+      font-size: 1.05rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: white;
+      color: #333;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, opacity 0.1s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.18);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(1px);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+      box-shadow: none;
+      transform: none;
+    }
+
+    #startBtn {
+      background: #e00000 !important;
+      color: white !important;
+      font-weight: bold;
+    }
+
+    video {
+      width: 480px;
+      max-width: 90vw;
+      border-radius: 12px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+      background: black;
+    }
+
+    .countdown {
+      font-size: 3rem;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 0 12px rgba(0,0,0,0.7);
+      height: 3rem;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 12px;
+      justify-content: center;
+    }
+
+    /* ---------- PAGE 3 LAYOUT TWEAKS ---------- */
+
+    #page3 {
+      justify-content: center;   /* center vertically */
+      padding-top: 0;
+    }
+
+    #page3 h1 {
+      margin-bottom: 8px;
+      transform: translateY(-40px); /* move title up a bit */
+    }
+
+    #page3 .printer-box {
+      margin-top: -30px;  /* pull printer box upwards */
+    }
+
+    #page3 .strip-actions {
+      margin-top: 6px;    /* keep buttons close to printer */
+      transform: translateY(-20px); /* move buttons up too */
+    }
+
+    /* ---------- PAGE 3: PRINTER BOX ---------- */
+
+    .printer-box {
+      background: #810101;
+      border-radius: 24px;
+      padding: 18px 22px 28px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      max-width: 320px;
+      width: 100%;
+    }
+
+    .printer-title {
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .printer-slot {
+      background: #111;
+      border-radius: 18px;
+      padding: 12px 10px 22px;
+      width: 100%;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .strip-canvas {
+      width: 220px;
+      height: auto;
+      display: block;
+      transform: translateY(-110%);
+    }
+
+    .strip-canvas.animate-drop {
+      animation: drop-strip 1.2s ease-out forwards;
+    }
+
+    @keyframes drop-strip {
+      0% { transform: translateY(-110%); }
+      70% { transform: translateY(4%); }
+      100% { transform: translateY(0); }
+    }
+
+    .strip-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .flash-overlay {
+      position: fixed;
+      inset: 0;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease-out;
+      z-index: 999;
+    }
+
+    .flash-overlay.active {
+      opacity: 0.85;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="flashOverlay" class="flash-overlay"></div>
+
+  <!-- Page 1 -->
+  <div id="page1" class="page active">
+    <h1>Photobooth</h1>
+    <p class="subtext">Tap start and strike your best poses. Three shots, Spidey strip.</p>
+    <button id="startBtn">Start</button>
+  </div>
+
+  <!-- Page 2 -->
+  <div id="page2" class="page">
+    <h1>Say cheese </h1>
+    <p class="subtext">You’ll get a 3-second countdown before each photo.</p>
+    <div class="countdown" id="countdown"></div>
+    <video id="video" autoplay playsinline></video>
+
+    <div class="button-row">
+      <button id="captureBtn">Capture strip</button>
+      <button id="retakeBtn">Clear photos</button>
+      <button id="restartBtn">Back to start</button>
+    </div>
+  </div>
+
+  <!-- Page 3 -->
+  <div id="page3" class="page">
+    <h1>Your Spidey strip 🕷️</h1>
+
+    <div class="printer-box">
+      <div class="printer-title">Photo is printing...</div>
+      <div class="printer-slot">
+        <div id="stripContainer"></div>
+      </div>
+    </div>
+
+    <div class="strip-actions">
+      <button id="downloadBtn">Download strip</button>
+      <button id="restartFromResultBtn">Start over</button>
+    </div>
+  </div>
+
+<script>
+  const page1 = document.getElementById('page1');
+  const page2 = document.getElementById('page2');
+  const page3 = document.getElementById('page3');
+
+  const startBtn = document.getElementById('startBtn');
+  const captureBtn = document.getElementById('captureBtn');
+  const retakeBtn = document.getElementById('retakeBtn');
+  const restartBtn = document.getElementById('restartBtn');
+
+  const downloadBtn = document.getElementById('downloadBtn');
+  const restartFromResultBtn = document.getElementById('restartFromResultBtn');
+
+  const video = document.getElementById('video');
+  const countdownEl = document.getElementById('countdown');
+  const stripContainer = document.getElementById('stripContainer');
+  const flashOverlay = document.getElementById('flashOverlay');
+
+  const NUM_PHOTOS = 3;
+  const COUNTDOWN_SECONDS = 3;
+
+  let stream = null;
+  let capturedCanvases = [];
+  let isCapturing = false;
+  let stripCanvas = null;
+
+  const TEMPLATE_SRC = '/photo/spidey.png';
+  const DESIGN_FRAME_WIDTH = 579;
+  const DESIGN_FRAME_HEIGHT = 1599;
+
+  const SLOT_RECTS = [
+    { x: 68, y: 72,  width: 453, height: 360 },
+    { x: 69, y: 490, width: 452, height: 360 },
+    { x: 69, y: 911, width: 453, height: 358 }
+  ];
+
+  const templateImg = new Image();
+  let templateLoaded = false;
+  templateImg.onload = () => templateLoaded = true;
+  templateImg.src = TEMPLATE_SRC;
+
+  function showPage(page) {
+    [page1, page2, page3].forEach(p => p.classList.remove('active'));
+    page.classList.add('active');
+  }
+
+  startBtn.addEventListener('click', async () => {
+    showPage(page2);
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      video.srcObject = stream;
+    } catch (err) {
+      alert("Camera access failed. Please check permissions.");
+    }
+  });
+
+  captureBtn.addEventListener('click', () => {
+    if (!stream || isCapturing) return;
+
+    isCapturing = true;
+    capturedCanvases = [];
+    stripCanvas = null;
+    stripContainer.innerHTML = "";
+    captureBtn.disabled = true;
+    retakeBtn.disabled = true;
+
+    runSequence(NUM_PHOTOS);
+  });
+
+  retakeBtn.addEventListener('click', () => {
+    if (isCapturing) return;
+    capturedCanvases = [];
+    stripCanvas = null;
+    stripContainer.innerHTML = "";
+    countdownEl.textContent = "";
+  });
+
+  restartBtn.addEventListener('click', () => {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    capturedCanvases = [];
+    stripCanvas = null;
+    stripContainer.innerHTML = "";
+    countdownEl.textContent = "";
+    isCapturing = false;
+    captureBtn.disabled = false;
+    retakeBtn.disabled = false;
+    showPage(page1);
+  });
+
+  restartFromResultBtn.addEventListener('click', () => {
+    capturedCanvases = [];
+    stripCanvas = null;
+    stripContainer.innerHTML = "";
+    countdownEl.textContent = "";
+    isCapturing = false;
+    captureBtn.disabled = false;
+    retakeBtn.disabled = false;
+    showPage(page2);
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    if (!stripCanvas) return;
+    const link = document.createElement('a');
+    link.href = stripCanvas.toDataURL('image/png');
+    link.download = 'photobooth-strip.png';
+    link.click();
+  });
+
+  function runSequence(remaining) {
+    if (remaining <= 0) {
+      makePhotostrip();
+      isCapturing = false;
+      captureBtn.disabled = false;
+      retakeBtn.disabled = false;
+      return;
+    }
+
+    startCountdown(COUNTDOWN_SECONDS, () => {
+      takePhoto();
+      setTimeout(() => runSequence(remaining - 1), 250);
+    });
+  }
+
+  function startCountdown(seconds, done) {
+    let current = seconds;
+    countdownEl.textContent = current;
+
+    const interval = setInterval(() => {
+      current--;
+      if (current > 0) {
+        countdownEl.textContent = current;
+      } else {
+        clearInterval(interval);
+        countdownEl.textContent = "";
+        done();
+      }
+    }, 1000);
+  }
+
+  function doFlash() {
+    flashOverlay.classList.add('active');
+    setTimeout(() => flashOverlay.classList.remove('active'), 120);
+  }
+
+  function takePhoto() {
+    if (!video.videoWidth || !video.videoHeight) return;
+
+    doFlash();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    capturedCanvases.push(canvas);
+  }
+
+  function makePhotostrip() {
+    if (!capturedCanvases.length) return;
+    if (!templateLoaded) {
+      alert("Template still loading. Try again.");
+      return;
+    }
+
+    const strip = document.createElement('canvas');
+    strip.width = templateImg.width;
+    strip.height = templateImg.height;
+
+    const ctx = strip.getContext('2d');
+    ctx.drawImage(templateImg, 0, 0, strip.width, strip.height);
+
+    const scaleX = strip.width / DESIGN_FRAME_WIDTH;
+    const scaleY = strip.height / DESIGN_FRAME_HEIGHT;
+
+    capturedCanvases.forEach((srcCanvas, i) => {
+      const rect = SLOT_RECTS[i];
+      if (!rect) return;
+
+      const x = rect.x * scaleX;
+      const y = rect.y * scaleY;
+      const w = rect.width * scaleX;
+      const h = rect.height * scaleY;
+
+      const srcAspect = srcCanvas.width / srcCanvas.height;
+      const dstAspect = w / h;
+
+      let drawW, drawH, drawX, drawY;
+
+      if (srcAspect > dstAspect) {
+        drawH = h;
+        drawW = h * srcAspect;
+        drawX = x + (w - drawW) / 2;
+        drawY = y;
+      } else {
+        drawW = w;
+        drawH = w / srcAspect;
+        drawX = x;
+        drawY = y + (h - drawH) / 2;
+      }
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      ctx.drawImage(srcCanvas, drawX, drawY, drawW, drawH);
+      ctx.restore();
+    });
+
+    stripCanvas = strip;
+    strip.classList.add('strip-canvas');
+
+    stripContainer.innerHTML = "";
+    stripContainer.appendChild(strip);
+
+    // restart animation
+    void strip.offsetWidth;
+    strip.classList.add("animate-drop");
+
+    showPage(page3);
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+  });
+</script>
+
+</body>
+</html>
